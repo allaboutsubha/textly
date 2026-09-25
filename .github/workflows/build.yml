@@ -13,18 +13,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ২. জাভা (Java) সেটআপ করা (অ্যান্ড্রয়েড বিল্ড করার জন্য দরকার)
+      # ২. জাভা (Java) সেটআপ করা
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # ৩. ফ্লাটার (Flutter) এসডিকে সেটআপ করা (stable ভার্সন ব্যবহার করা হয়েছে যেন SDK মিসম্যাচ না হয়)
+      # ৩. ফ্লাটার (Flutter) এসডিকে সেটআপ করা (এখানে flutter-version বাদ দেওয়া হয়েছে)
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
           channel: 'stable'
           cache: true
 
@@ -32,11 +31,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ৫. রিলিজ APK বিল্ড করা
+      # ۵. রিলিজ APK বিল্ড করা
       - name: Build APK
         run: flutter build apk --release
 
-      # ৬. APK ফাইলটি আপলোড করা এবং ঠিক ১ দিন (24 hours) পর অটো-ডিলিট সেট করা
+      # ৬. APK ফাইলটি আপলোড করা এবং ১ দিন পর অটো-ডিলিট সেট করা
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
