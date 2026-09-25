@@ -9,33 +9,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ১. আপনার কোড গিটহাব থেকে চেকআউট করা
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ২. জাভা (Java) সেটআপ করা
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # ৩. ফ্লাটার (Flutter) এসডিকে সেটআপ করা (এখানে flutter-version বাদ দেওয়া হয়েছে)
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      # ৪. প্রজেক্টের ডিপেন্ডেন্সিগুলো ডাউনলোড করা
       - name: Install dependencies
         run: flutter pub get
 
-      # ۵. রিলিজ APK বিল্ড করা
+      # গ্রেডল বিল্ড ক্যাশ চালু করার জন্য এই স্টেপটি সাহায্য করবে
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${- runner.os }}-gradle-
+
       - name: Build APK
         run: flutter build apk --release
 
-      # ৬. APK ফাইলটি আপলোড করা এবং ১ দিন পর অটো-ডিলিট সেট করা
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
