@@ -27,14 +27,22 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # পুরোনো sms_advanced প্যাকেজের namespace সমস্যা দূর করার জন্য ফিক্স স্ক্রিপ্ট
-      - name: Fix package namespace issue
+      # sms_advanced প্যাকেজের ম্যানিফেস্ট এবং গ্রেডল ফিক্স করার স্ক্রিপ্ট
+      - name: Fix sms_advanced package compatibility
         run: |
-          PUB_CACHE_DIR=$(flutter pub global pak 2>/dev/null || echo "$HOME/.pub-cache")
-          SMS_ADVANCED_GRADLE="$HOME/.pub-cache/hosted/pub.dev/sms_advanced-1.1.0/android/build.gradle"
-          if [ -f "$SMS_ADVANCED_GRADLE" ]; then
-            echo "Fixing namespace in sms_advanced..."
-            sed -i '/android {/a \    namespace "com.shounak.sms_advanced"' "$SMS_ADVANCED_GRADLE"
+          MANIFEST_FILE="$HOME/.pub-cache/hosted/pub.dev/sms_advanced-1.1.0/android/src/main/AndroidManifest.xml"
+          GRADLE_FILE="$HOME/.pub-cache/hosted/pub.dev/sms_advanced-1.1.0/android/build.gradle"
+
+          if [ -f "$MANIFEST_FILE" ]; then
+            echo "Removing package attribute from AndroidManifest.xml..."
+            sed -i 's/package="com.elyudde.sms_advanced"//g' "$MANIFEST_FILE"
+          fi
+
+          if [ -f "$GRADLE_FILE" ]; then
+            echo "Adding namespace to build.gradle..."
+            if ! grep -q "namespace" "$GRADLE_FILE"; then
+              sed -i '/android {/a \    namespace "com.elyudde.sms_advanced"' "$GRADLE_FILE"
+            fi
           fi
 
       - name: Cache Gradle dependencies
