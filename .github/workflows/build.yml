@@ -27,10 +27,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # sms_advanced এবং Android compileSdk 34 ফিক্স করার স্ক্রিপ্ট
-      - name: Fix Android SDK 34 and Package Issues
+      # থার্ড-পার্টি sms_advanced প্যাকেজের namespace এবং manifest ফিক্স করার স্ক্রিপ্ট
+      - name: Fix sms_advanced Compatibility for Gradle
         run: |
-          # 1. Fix sms_advanced package
           MANIFEST_FILE="$HOME/.pub-cache/hosted/pub.dev/sms_advanced-1.1.0/android/src/main/AndroidManifest.xml"
           GRADLE_FILE="$HOME/.pub-cache/hosted/pub.dev/sms_advanced-1.1.0/android/build.gradle"
 
@@ -42,15 +41,8 @@ jobs:
             if ! grep -q "namespace" "$GRADLE_FILE"; then
               sed -i '/android {/a \    namespace "com.elyudde.sms_advanced"' "$GRADLE_FILE"
             fi
-          fi
-
-          # 2. Update app compileSdk and targetSdk to 34
-          APP_GRADLE="android/app/build.gradle"
-          if [ -f "$APP_GRADLE" ]; then
-            sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' "$APP_GRADLE"
-            sed -i 's/compileSdk.*/compileSdk 34/g' "$APP_GRADLE"
-            sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' "$APP_GRADLE"
-            sed -i 's/targetSdk.*/targetSdk 34/g' "$APP_GRADLE"
+            sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' "$GRADLE_FILE" || true
+            sed -i 's/compileSdk.*/compileSdk 34/g' "$GRADLE_FILE" || true
           fi
 
       - name: Cache Gradle dependencies
