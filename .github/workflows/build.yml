@@ -1,0 +1,45 @@
+name: Build Textly APK
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ১. আপনার কোড গিটহাব থেকে চেকআউট করা
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ২. জাভা (Java) সেটআপ করা (অ্যান্ড্রয়েড বিল্ড করার জন্য দরকার)
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # ৩. ফ্লাটার (Flutter) এসডিকে সেটআপ করা
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.x' # আপনার প্রজেক্টের ফ্লাটার ভার্সন অনুযায়ী দিতে পারেন
+          channel: 'stable'
+          cache: true
+
+      # ৪. প্রজেক্টের ডিপেন্ডেন্সিগুলো ডাউনলোড করা
+      - name: Install dependencies
+        run: flutter pub get
+
+      # ৫. রিলিজ APK বিল্ড করা
+      - name: Build APK
+        run: flutter build apk --release
+
+      # ৬. APK ফাইলটি আপলোড করা এবং ঠিক ১ দিন (24 hours) পর অটো-ডিলিট সেট করা
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Textly-Release-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 1 # <--- এটি ১ দিন পর APK অটো ডিলিট করে দেবে
