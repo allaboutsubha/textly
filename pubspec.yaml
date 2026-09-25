@@ -13,7 +13,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   
   # আমাদের এসএমএস অ্যাপের জন্য প্রয়োজনীয় প্যাকেজসমূহ
-  telephony: ^0.2.0
+  sms_advanced: ^1.1.0
   permission_handler: ^11.3.1
   intl: ^0.19.0
 

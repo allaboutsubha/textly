@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:telephony/telephony.dart';
+import 'package:sms_advanced/sms_advanced.dart'; // নতুন প্যাকেজ ইমপোর্ট
 
 void main() {
   runApp(const TextlyApp());
@@ -37,7 +37,6 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  final Telephony telephony = Telephony.instance;
   List<SmsMessage> _messages = [];
   bool _isLoading = true;
   bool _hasPermission = false;
@@ -48,7 +47,6 @@ class _InboxScreenState extends State<InboxScreen> {
     _requestSmsPermission();
   }
 
-  // পারমিশন চেক এবং চাওয়ার ফাংশন
   Future<void> _requestSmsPermission() async {
     PermissionStatus status = await Permission.sms.request();
     if (status.isGranted) {
@@ -64,13 +62,11 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
-  // ইনবক্স থেকে এসএমএস লোড করার ফাংশন
+  // sms_advanced দিয়ে ইনবক্স মেসেজ ফেচ করার লজিক
   Future<void> _loadMessages() async {
     try {
-      List<SmsMessage> messages = await telephony.getInboxSms(
-        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-        sortOrder: [OrderBy(SmsColumn.DATE, sort: SortOrder.DESC)],
-      );
+      SmsQuery query = SmsQuery();
+      List<SmsMessage> messages = await query.getAllSms;
 
       setState(() {
         _messages = messages;
@@ -132,8 +128,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   ),
                 )
               : _messages.isEmpty
-                  no Messages found.
-                  const Center(
+                  ? const Center(
                       child: Text(
                         'কোনো মেসেজ পাওয়া যায়নি!',
                         style: TextStyle(color: Color(0xFF64748B)),
