@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.textly.app"
-    compileSdk = 34
+    compileSdk = 36 // Eta 34 theke 36 kore dilam
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -16,7 +16,7 @@ android {
     defaultConfig {
         applicationId = "com.textly.app"
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36 // Etao 36 kore dilam
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
