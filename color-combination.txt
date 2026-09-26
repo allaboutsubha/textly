@@ -1,0 +1,33 @@
+Color Code
+Primary: #2563EB — Electric/Professional Blue
+Primary Dark: #1D4ED8
+Accent: #06B6D4 — Cyan
+Background: #F8FAFC
+Surface/Card: #FFFFFF
+Text Primary: #0F172A
+Text Secondary: #64748B
+Border: #E2E8F0
+Success: #16A34A
+Danger: #DC2626
+Warning: #F59E0B
+
+Font: 
+Inter
+Inter → Roboto → sans-serif
+
+Font weights:
+Regular     400
+Medium      500
+SemiBold    600
+Bold        700
+
+Design Rules:
+App background     #F8FAFC
+Card background    #FFFFFF
+Corner radius      16px
+Button radius      12px
+Input radius       12px
+Screen padding     20px
+Card padding       16px
+Section gap        24px
+Small gap          8px

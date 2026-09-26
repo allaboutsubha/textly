@@ -65,7 +65,6 @@ class _InboxScreenState extends State<InboxScreen> {
   // অ্যান্ড্রয়েডের নেটিভ ইনবক্স থেকে রিয়েল এসএমএস ফেচ করার ফাংশন
   Future<void> _fetchInboxSMS() async {
     try {
-      // প্ল্যাটফর্ম চ্যানেলের মাধ্যমে ফোনের ইনবক্স রিড করা
       final List<dynamic> result = await platform.invokeMethod('getInboxSms');
       final List<Map<String, String>> loadedMessages = result.map((item) {
         final map = Map<String, dynamic>.from(item);
@@ -81,11 +80,19 @@ class _InboxScreenState extends State<InboxScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      // যদি নেটিভ কোড কনফিগার করা না থাকে, তবে সেফ হ্যান্ডলিং
       setState(() {
         _realMessages = [];
         _isLoading = false;
       });
+    }
+  }
+
+  // অ্যাপটিকে ডিফল্ট এসএমএস অ্যাপ হিসেবে সেট করার মেথড
+  Future<void> _requestDefaultSmsApp() async {
+    try {
+      await platform.invokeMethod('setDefaultSmsApp');
+    } catch (e) {
+      debugPrint("Error setting default app: $e");
     }
   }
 
@@ -100,6 +107,11 @@ class _InboxScreenState extends State<InboxScreen> {
         backgroundColor: const Color(0xFFFFFFFF),
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_applications, color: Color(0xFF2563EB)),
+            tooltip: 'Set as Default SMS App',
+            onPressed: _requestDefaultSmsApp,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
             onPressed: _requestAndFetchSms,
@@ -116,7 +128,7 @@ class _InboxScreenState extends State<InboxScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          'ইনবক্স দেখতে এসএমএস পারমিشن প্রয়োজন।',
+                          'ইনবক্স দেখতে এসএমএস পারমিশন প্রয়োজন।',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                         ),
