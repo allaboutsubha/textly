@@ -1,41 +1,31 @@
 package app.textly.com
 
-import android.content.Intent
 import android.database.Cursor
+import android.database.ContentObserver
 import android.net.Uri
-import android.provider.Telephony
+import android.os.Handler
+import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.textly.app/sms"
+    private val METHOD_CHANNEL = "com.textly.app/sms"
+    private val EVENT_CHANNEL = "com.textly.app/sms_stream"
+    private var smsObserver: ContentObserver? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+
+        // ১. সাধারণ মেথড হ্যান্ডলার (ইনবক্স ফেচ ও ডিফল্ট অ্যাপ সেট করার জন্য)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, METHOD_CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "getInboxSms") {
-                val smsList = mutableListOf<Map<String, String>>()
-                try {
-                    val uri: Uri = Uri.parse("content://sms/inbox")
-                    val cursor: Cursor? = contentResolver.query(uri, null, null, null, "date DESC")
-                    cursor?.use {
-                        val addressIndex = it.getColumnIndex("address")
-                        val bodyIndex = it.getColumnIndex("body")
-                        while (it.moveToNext()) {
-                            val address = if (addressIndex != -1) it.getString(addressIndex) else "Unknown"
-                            val body = if (bodyIndex != -1) it.getString(bodyIndex) else ""
-                            smsList.add(mapOf("address" to address, "body" to body))
-                        }
-                    }
-                    result.success(smsList)
-                } catch (e: Exception) {
-                    result.error("UNAVAILABLE", "SMS reading failed: ${e.message}", null)
-                }
+                result.success(fetchSmsList())
             } else if (call.method == "setDefaultSmsApp") {
                 try {
-                    val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-                    intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
+                    val intent = android.content.Intent(android.provider.Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+                    intent.putExtra(android.provider.Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
                     startActivity(intent)
                     result.success(true)
                 } catch (e: Exception) {
@@ -45,5 +35,53 @@ class MainActivity: FlutterActivity() {
                 result.notImplemented()
             }
         }
+
+        // ২. লাইভ স্ট্রিম চ্যানেল (গুগল মেসেজের মতো রিয়েল-টাইম আপডেট পাঠানোর জন্য)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    val handler = Handler(Looper.getMainLooper())
+                    smsObserver = object : ContentObserver(handler) {
+                        override fun onChange(selfChange: Boolean, uri: Uri?) {
+                            super.onChange(selfChange, uri)
+                            // নতুন মেসেজ আসা মাত্রই তা ফেচ করে ফ্লাটারে পাঠিয়ে দেওয়া হবে
+                            events?.success(fetchSmsList())
+                        }
+                    }
+                    contentResolver.registerContentObserver(
+                        Uri.parse("content://sms/inbox"),
+                        true,
+                        smsObserver!!
+                    )
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    if (smsObserver != null) {
+                        contentResolver.unregisterContentObserver(smsObserver!!)
+                        smsObserver = null
+                    }
+                }
+            }
+        )
+    }
+
+    private fun fetchSmsList(): List<Map<String, String>> {
+        val smsList = mutableListOf<Map<String, String>>()
+        try {
+            val uri: Uri = Uri.parse("content://sms/inbox")
+            val cursor: Cursor? = contentResolver.query(uri, null, null, null, "date DESC")
+            cursor?.use {
+                val addressIndex = it.getColumnIndex("address")
+                val bodyIndex = it.getColumnIndex("body")
+                while (it.moveToNext()) {
+                    val address = if (addressIndex != -1) it.getString(addressIndex) else "Unknown"
+                    val body = if (bodyIndex != -1) it.getString(bodyIndex) else ""
+                    smsList.add(mapOf("address" to address, "body" to body))
+                }
+            }
+        } catch (e: Exception) {
+            // Error handling
+        }
+        return smsList
     }
 }

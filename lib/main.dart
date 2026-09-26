@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 void main() {
   runApp(const TextlyApp());
@@ -39,21 +40,31 @@ class _InboxScreenState extends State<InboxScreen> {
   List<Map<String, String>> _realMessages = [];
   bool _isLoading = true;
   bool _hasPermission = false;
+  
   static const platform = MethodChannel('com.textly.app/sms');
+  static const EventChannel _smsStream = EventChannel('com.textly.app/sms_stream');
+  StreamSubscription? _smsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _requestAndFetchSms();
+    _requestAndInitSms();
   }
 
-  Future<void> _requestAndFetchSms() async {
+  @override
+  void dispose() {
+    _smsSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _requestAndInitSms() async {
     setState(() => _isLoading = true);
     PermissionStatus status = await Permission.sms.request();
     
     if (status.isGranted) {
       setState(() => _hasPermission = true);
-      await _fetchInboxSMS();
+      await _fetchInitialSms();
+      _startSmsListener(); // লাইভ স্ট্রিম লিসেনার চালু করা হলো
     } else {
       setState(() {
         _hasPermission = false;
@@ -62,32 +73,44 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
-  // অ্যান্ড্রয়েডের নেটিভ ইনবক্স থেকে রিয়েল এসএমএস ফেচ করার ফাংশন
-  Future<void> _fetchInboxSMS() async {
+  Future<void> _fetchInitialSms() async {
     try {
       final List<dynamic> result = await platform.invokeMethod('getInboxSms');
-      final List<Map<String, String>> loadedMessages = result.map((item) {
-        final map = Map<String, dynamic>.from(item);
-        return {
-          "sender": map["address"]?.toString() ?? "Unknown",
-          "body": map["body"]?.toString() ?? "",
-          "date": "Recent",
-        };
-      }).toList();
+      _updateMessageList(result);
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
 
+  // গুগল মেসেজের মতো রিয়েল-টাইম লাইভ লিসেনার
+  void _startSmsListener() {
+    _smsSubscription = _smsStream.receiveBroadcastStream().listen((dynamic event) {
+      if (event != null) {
+        _updateMessageList(event as List<dynamic>);
+      }
+    }, onError: (dynamic error) {
+      debugPrint("SMS Stream Error: $error");
+    });
+  }
+
+  void _updateMessageList(List<dynamic> result) {
+    final List<Map<String, String>> loadedMessages = result.map((item) {
+      final map = Map<String, dynamic>.from(item);
+      return {
+        "sender": map["address"]?.toString() ?? "Unknown",
+        "body": map["body"]?.toString() ?? "",
+        "date": "Recent",
+      };
+    }).toList();
+
+    if (mounted) {
       setState(() {
         _realMessages = loadedMessages;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _realMessages = [];
         _isLoading = false;
       });
     }
   }
 
-  // অ্যাপটিকে ডিফল্ট এসএমএস অ্যাপ হিসেবে সেট করার মেথড
   Future<void> _requestDefaultSmsApp() async {
     try {
       await platform.invokeMethod('setDefaultSmsApp');
@@ -114,7 +137,7 @@ class _InboxScreenState extends State<InboxScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
-            onPressed: _requestAndFetchSms,
+            onPressed: _fetchInitialSms,
           ),
         ],
       ),
@@ -138,7 +161,7 @@ class _InboxScreenState extends State<InboxScreen> {
                             backgroundColor: const Color(0xFF2563EB),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: _requestAndFetchSms,
+                          onPressed: _requestAndInitSms,
                           child: const Text('পারমিশন দিন'),
                         ),
                       ],
