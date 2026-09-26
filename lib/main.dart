@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const TextlyApp());
@@ -35,29 +36,57 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  bool _isLoading = false;
+  List<Map<String, String>> _realMessages = [];
+  bool _isLoading = true;
   bool _hasPermission = false;
-
-  // আপনার ক্লায়েন্টকে দেখানোর জন্য বা প্রজেক্ট সচল রাখার জন্য ডামি বা লোকাল ইনবক্স ডাটা
-  final List<Map<String, String>> _dummyMessages = [
-    {"sender": "RBL Bank", "body": "13198 is the OTP to provide consent for your RBL Bank Credit Card application.", "date": "25 Sept"},
-    {"sender": "Jio Info", "body": "এই জিও নম্বর 9614207279 এ আপনার প্ল্যান শেষ হয়ে গেছে এবং পরিষেবা বন্ধ হয়ে গেছে।", "date": "25 Sept"},
-    {"sender": "Bsnl Subha", "body": "Hi, how are you? Let me know when you are free.", "date": "25 Sept"},
-  ];
+  static const platform = MethodChannel('com.textly.app/sms');
 
   @override
   void initState() {
     super.initState();
-    _requestPermission();
+    _requestAndFetchSms();
   }
 
-  Future<void> _requestPermission() async {
+  Future<void> _requestAndFetchSms() async {
     setState(() => _isLoading = true);
     PermissionStatus status = await Permission.sms.request();
-    setState(() {
-      _hasPermission = status.isGranted;
-      _isLoading = false;
-    });
+    
+    if (status.isGranted) {
+      setState(() => _hasPermission = true);
+      await _fetchInboxSMS();
+    } else {
+      setState(() {
+        _hasPermission = false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // অ্যান্ড্রয়েডের নেটিভ ইনবক্স থেকে রিয়েল এসএমএস ফেচ করার ফাংশন
+  Future<void> _fetchInboxSMS() async {
+    try {
+      // প্ল্যাটফর্ম চ্যানেলের মাধ্যমে ফোনের ইনবক্স রিড করা
+      final List<dynamic> result = await platform.invokeMethod('getInboxSms');
+      final List<Map<String, String>> loadedMessages = result.map((item) {
+        final map = Map<String, dynamic>.from(item);
+        return {
+          "sender": map["address"]?.toString() ?? "Unknown",
+          "body": map["body"]?.toString() ?? "",
+          "date": "Recent",
+        };
+      }).toList();
+
+      setState(() {
+        _realMessages = loadedMessages;
+        _isLoading = false;
+      });
+    } catch (e) {
+      // যদি নেটিভ কোড কনফিগার করা না থাকে, তবে সেফ হ্যান্ডলিং
+      setState(() {
+        _realMessages = [];
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -73,7 +102,7 @@ class _InboxScreenState extends State<InboxScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
-            onPressed: _requestPermission,
+            onPressed: _requestAndFetchSms,
           ),
         ],
       ),
@@ -87,7 +116,7 @@ class _InboxScreenState extends State<InboxScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          'অ্যাপটি চালাতে এসএমএস পারমিশন প্রয়োজন।',
+                          'ইনবক্স দেখতে এসএমএস পারমিشن প্রয়োজন।',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                         ),
@@ -97,53 +126,59 @@ class _InboxScreenState extends State<InboxScreen> {
                             backgroundColor: const Color(0xFF2563EB),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: _requestPermission,
+                          onPressed: _requestAndFetchSms,
                           child: const Text('পারমিশন দিন'),
                         ),
                       ],
                     ),
                   ),
                 )
-              : ListView.builder(
-                  padding: constEDI = const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _dummyMessages.length,
-                  itemBuilder: (context, index) {
-                    final msg = _dummyMessages[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+              : _realMessages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'আপনার ফোনে কোনো মেসেজ পাওয়া যায়নি!',
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
                       ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
-                          child: const Icon(Icons.message, color: Color(0xFF2563EB)),
-                        ),
-                        title: Text(
-                          msg['sender']!,
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Text(
-                            msg['body']!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Color(0xFF64748B)),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _realMessages.length,
+                      itemBuilder: (context, index) {
+                        final msg = _realMessages[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFFFF),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                        ),
-                        trailing: Text(
-                          msg['date']!,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
+                              child: const Icon(Icons.message, color: Color(0xFF2563EB)),
+                            ),
+                            title: Text(
+                              msg['sender']!,
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                msg['body']!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Color(0xFF64748B)),
+                              ),
+                            ),
+                            trailing: Text(
+                              msg['date']!,
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
     );
   }
 }
