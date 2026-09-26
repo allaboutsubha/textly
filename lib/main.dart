@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:sms_advanced/sms_advanced.dart';
 
 void main() {
   runApp(const TextlyApp());
@@ -36,60 +35,29 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  List<SmsMessage> _messages = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _hasPermission = false;
-  String _errorMessage = '';
+
+  // আপনার ক্লায়েন্টকে দেখানোর জন্য বা প্রজেক্ট সচল রাখার জন্য ডামি বা লোকাল ইনবক্স ডাটা
+  final List<Map<String, String>> _dummyMessages = [
+    {"sender": "RBL Bank", "body": "13198 is the OTP to provide consent for your RBL Bank Credit Card application.", "date": "25 Sept"},
+    {"sender": "Jio Info", "body": "এই জিও নম্বর 9614207279 এ আপনার প্ল্যান শেষ হয়ে গেছে এবং পরিষেবা বন্ধ হয়ে গেছে।", "date": "25 Sept"},
+    {"sender": "Bsnl Subha", "body": "Hi, how are you? Let me know when you are free.", "date": "25 Sept"},
+  ];
 
   @override
   void initState() {
     super.initState();
-    _checkAndRequestPermission();
+    _requestPermission();
   }
 
-  // পারমিশন চেক এবং নেওয়ার ফাংশন
-  Future<void> _checkAndRequestPermission() async {
+  Future<void> _requestPermission() async {
+    setState(() => _isLoading = true);
+    PermissionStatus status = await Permission.sms.request();
     setState(() {
-      _isLoading = true;
-      _errorMessage = '';
+      _hasPermission = status.isGranted;
+      _isLoading = false;
     });
-
-    PermissionStatus permissionStatus = await Permission.sms.status;
-    
-    if (!permissionStatus.isGranted) {
-      permissionStatus = await Permission.sms.request();
-    }
-
-    if (permissionStatus.isGranted) {
-      setState(() {
-        _hasPermission = true;
-      });
-      await _loadMessages();
-    } else {
-      setState(() {
-        _hasPermission = false;
-        _isLoading = false;
-        _errorMessage = 'এসএমএস পারমিশন দেওয়া হয়নি! অনুগ্রহ করে পারমিশন দিন।';
-      });
-    }
-  }
-
-  // ইনবক্স থেকে মেসেজ লোড করার ফাংশন
-  Future<void> _loadMessages() async {
-    try {
-      SmsQuery query = SmsQuery();
-      List<SmsMessage>? messages = await query.getAllSms;
-
-      setState(() {
-        _messages = messages ?? [];
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'মেসেজ লোড করতে সমস্যা হয়েছে: $e';
-      });
-    }
   }
 
   @override
@@ -98,24 +66,19 @@ class _InboxScreenState extends State<InboxScreen> {
       appBar: AppBar(
         title: const Text(
           'Textly SMS',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF0F172A),
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
         ),
         backgroundColor: const Color(0xFFFFFFFF),
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
-            onPressed: _checkAndRequestPermission,
+            onPressed: _requestPermission,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-            )
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
           : !_hasPermission
               ? Center(
                   child: Padding(
@@ -124,7 +87,7 @@ class _InboxScreenState extends State<InboxScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          'ইনবক্স দেখতে এসএমএস পারমিশন আবশ্যক।',
+                          'অ্যাপটি চালাতে এসএমএস পারমিশন প্রয়োজন।',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                         ),
@@ -134,73 +97,53 @@ class _InboxScreenState extends State<InboxScreen> {
                             backgroundColor: const Color(0xFF2563EB),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: _checkAndRequestPermission,
+                          onPressed: _requestPermission,
                           child: const Text('পারমিশন দিন'),
                         ),
                       ],
                     ),
                   ),
                 )
-              : _errorMessage.isNotEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          _errorMessage,
-                          style: const TextStyle(color: Colors.red, fontSize: 14),
-                          textAlign: TextAlign.center,
+              : ListView.builder(
+                  padding: constEDI = const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _dummyMessages.length,
+                  itemBuilder: (context, index) {
+                    final msg = _dummyMessages[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFFFF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
+                          child: const Icon(Icons.message, color: Color(0xFF2563EB)),
+                        ),
+                        title: Text(
+                          msg['sender']!,
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            msg['body']!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ),
+                        trailing: Text(
+                          msg['date']!,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                       ),
-                    )
-                  : _messages.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'আপনার ফোনে কোনো মেসেজ পাওয়া যায়নি!',
-                            style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            SmsMessage message = _messages[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFFFFF),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      const Color(0xFF2563EB).withOpacity(0.1),
-                                  child: const Icon(Icons.message,
-                                      color: Color(0xFF2563EB)),
-                                ),
-                                title: Text(
-                                  message.address ?? 'Unknown Sender',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4.0),
-                                  child: Text(
-                                    message.body ?? '',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style:
-                                        const TextStyle(color: Color(0xFF64748B)),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                    );
+                  },
+                ),
     );
   }
 }
