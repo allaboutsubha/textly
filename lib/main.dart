@@ -17,10 +17,11 @@ class TextlyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        primaryColor: const Color(0xFF2563EB),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2563EB),
-          brightness: Brightness.dark,
+          primary: const Color(0xFF2563EB),
         ),
       ),
       home: const InboxScreen(),
@@ -97,9 +98,14 @@ class _InboxScreenState extends State<InboxScreen> {
     });
   }
 
-  Future<void> _deleteMessage(String id) async {
+  Future<void> _deleteGroupMessages(List<dynamic> messages) async {
     try {
-      await platform.invokeMethod('deleteSms', {"id": id});
+      for (var msg in messages) {
+        final m = Map<String, dynamic>.from(msg);
+        if (m['id'] != null) {
+          await platform.invokeMethod('deleteSms', {"id": m['id'].toString()});
+        }
+      }
       _fetchGroupedSms();
     } catch (e) {
       debugPrint("Delete error: $e");
@@ -118,31 +124,36 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Conversations', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        title: const Text(
+          'Conversations',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+        ),
+        backgroundColor: const Color(0xFFFFFFFF),
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_applications),
+            icon: const Icon(Icons.settings_applications, color: Color(0xFF2563EB)),
+            tooltip: 'Set as Default SMS App',
             onPressed: _requestDefaultSmsApp,
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
             onPressed: _fetchGroupedSms,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
           : !_hasPermission
               ? Center(
                   child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
                     onPressed: _requestAndInitSms,
                     child: const Text('Grant SMS Permission'),
                   ),
                 )
               : _groupedMessages.isEmpty
-                  ? const Center(child: Text('No messages found'))
+                  ? const Center(child: Text('No messages found', style: TextStyle(color: Color(0xFF64748B))))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: _groupedMessages.length,
@@ -158,46 +169,57 @@ class _InboxScreenState extends State<InboxScreen> {
                           background: Container(
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.symmetric(horizontal: 20),
-                            color: Colors.red,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                             child: const Icon(Icons.delete, color: Colors.white),
                           ),
                           onDismissed: (direction) {
-                            // Group-er shob message ba latest message delete korar jonno
-                            for (var msg in messages) {
-                              final m = Map<String, dynamic>.from(msg);
-                              if (m['id'] != null) {
-                                _deleteMessage(m['id'].toString());
-                              }
-                            }
                             setState(() {
                               _groupedMessages.removeAt(index);
                             });
+                            _deleteGroupMessages(messages);
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Conversation deleted')),
                             );
                           },
-                          child: Card(
-                            color: const Color(0xFF1E293B),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFFFFF),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
                             child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor: Colors.blue.withOpacity(0.2),
-                                child: const Icon(Icons.person, color: Colors.blue),
+                                backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
+                                child: const Icon(Icons.person, color: Color(0xFF2563EB)),
                               ),
                               title: Text(
                                 sender,
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                               ),
-                              subtitle: Text(
-                                lastMessage,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.grey),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Text(
+                                  lastMessage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Color(0xFF64748B)),
+                                ),
                               ),
-                              trailing: Text(
-                                "${messages.length}",
-                                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                              trailing: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2563EB).withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  "${messages.length}",
+                                  style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
                               ),
                               onTap: () {
                                 Navigator.push(
@@ -219,7 +241,6 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 }
 
-// Conversation Detail View Screen (Image 2 style)
 class ConversationDetailScreen extends StatelessWidget {
   final String sender;
   final List<dynamic> messages;
@@ -230,8 +251,10 @@ class ConversationDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(sender),
-        backgroundColor: Colors.transparent,
+        title: Text(sender, style: const TextStyle(color: Color(0xFF0F172A))),
+        backgroundColor: const Color(0xFFFFFFFF),
+        iconTheme: const IconThemeData(color: Color(0xFF2563EB)),
+        elevation: 0,
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -240,14 +263,15 @@ class ConversationDetailScreen extends StatelessWidget {
           final msg = Map<String, dynamic>.from(messages[index]);
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF334155),
+              color: const Color(0xFFFFFFFF),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Text(
               msg['body'] ?? '',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15),
             ),
           );
         },
