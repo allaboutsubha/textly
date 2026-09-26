@@ -18,7 +18,6 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // ১. সাধারণ মেথড হ্যান্ডলার (ইনবক্স ফেচ ও ডিফল্ট অ্যাপ সেট করার জন্য)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, METHOD_CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "getInboxSms") {
                 result.success(fetchSmsList())
@@ -36,7 +35,7 @@ class MainActivity: FlutterActivity() {
             }
         }
 
-        // ২. লাইভ স্ট্রিম চ্যানেল (গুগল মেসেজের মতো রিয়েল-টাইম আপডেট পাঠানোর জন্য)
+        // মূল content://sms/ ইউআরআই ব্যবহার করা হয়েছে যাতে যেকোনো নতুন মেসেজ আসা মাত্রই ইনস্ট্যান্ট ট্রিগার করে
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -44,12 +43,11 @@ class MainActivity: FlutterActivity() {
                     smsObserver = object : ContentObserver(handler) {
                         override fun onChange(selfChange: Boolean, uri: Uri?) {
                             super.onChange(selfChange, uri)
-                            // নতুন মেসেজ আসা মাত্রই তা ফেচ করে ফ্লাটারে পাঠিয়ে দেওয়া হবে
                             events?.success(fetchSmsList())
                         }
                     }
                     contentResolver.registerContentObserver(
-                        Uri.parse("content://sms/inbox"),
+                        Uri.parse("content://sms/"),
                         true,
                         smsObserver!!
                     )
