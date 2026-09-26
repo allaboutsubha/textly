@@ -17,11 +17,10 @@ class TextlyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        primaryColor: const Color(0xFF2563EB),
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2563EB),
-          primary: const Color(0xFF2563EB),
+          brightness: Brightness.dark,
         ),
       ),
       home: const InboxScreen(),
@@ -37,7 +36,7 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  List<Map<String, String>> _realMessages = [];
+  List<dynamic> _groupedMessages = [];
   bool _isLoading = true;
   bool _hasPermission = false;
   
@@ -63,8 +62,8 @@ class _InboxScreenState extends State<InboxScreen> {
     
     if (status.isGranted) {
       setState(() => _hasPermission = true);
-      await _fetchInitialSms();
-      _startSmsListener(); // লাইভ স্ট্রিম লিসেনার চালু করা হলো
+      await _fetchGroupedSms();
+      _startSmsListener();
     } else {
       setState(() {
         _hasPermission = false;
@@ -73,41 +72,37 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
-  Future<void> _fetchInitialSms() async {
+  Future<void> _fetchGroupedSms() async {
     try {
-      final List<dynamic> result = await platform.invokeMethod('getInboxSms');
-      _updateMessageList(result);
+      final List<dynamic> result = await platform.invokeMethod('getGroupedSms');
+      if (mounted) {
+        setState(() {
+          _groupedMessages = result;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // গুগল মেসেজের মতো রিয়েল-টাইম লাইভ লিসেনার
   void _startSmsListener() {
     _smsSubscription = _smsStream.receiveBroadcastStream().listen((dynamic event) {
-      if (event != null) {
-        _updateMessageList(event as List<dynamic>);
+      if (event != null && mounted) {
+        setState(() {
+          _groupedMessages = event as List<dynamic>;
+          _isLoading = false;
+        });
       }
-    }, onError: (dynamic error) {
-      debugPrint("SMS Stream Error: $error");
     });
   }
 
-  void _updateMessageList(List<dynamic> result) {
-    final List<Map<String, String>> loadedMessages = result.map((item) {
-      final map = Map<String, dynamic>.from(item);
-      return {
-        "sender": map["address"]?.toString() ?? "Unknown",
-        "body": map["body"]?.toString() ?? "",
-        "date": "Recent",
-      };
-    }).toList();
-
-    if (mounted) {
-      setState(() {
-        _realMessages = loadedMessages;
-        _isLoading = false;
-      });
+  Future<void> _deleteMessage(String id) async {
+    try {
+      await platform.invokeMethod('deleteSms', {"id": id});
+      _fetchGroupedSms();
+    } catch (e) {
+      debugPrint("Delete error: $e");
     }
   }
 
@@ -123,97 +118,140 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Textly SMS',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-        ),
-        backgroundColor: const Color(0xFFFFFFFF),
+        title: const Text('Conversations', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_applications, color: Color(0xFF2563EB)),
-            tooltip: 'Set as Default SMS App',
+            icon: const Icon(Icons.settings_applications),
             onPressed: _requestDefaultSmsApp,
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF2563EB)),
-            onPressed: _fetchInitialSms,
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchGroupedSms,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+          ? const Center(child: CircularProgressIndicator())
           : !_hasPermission
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'ইনবক্স দেখতে এসএমএস পারমিশন প্রয়োজন।',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: _requestAndInitSms,
-                          child: const Text('পারমিশন দিন'),
-                        ),
-                      ],
-                    ),
+                  child: ElevatedButton(
+                    onPressed: _requestAndInitSms,
+                    child: const Text('Grant SMS Permission'),
                   ),
                 )
-              : _realMessages.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'আপনার ফোনে কোনো মেসেজ পাওয়া যায়নি!',
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
-                      ),
-                    )
+              : _groupedMessages.isEmpty
+                  ? const Center(child: Text('No messages found'))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      itemCount: _realMessages.length,
+                      itemCount: _groupedMessages.length,
                       itemBuilder: (context, index) {
-                        final msg = _realMessages[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFFFFF),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                        final group = Map<String, dynamic>.from(_groupedMessages[index]);
+                        final sender = group['sender'] ?? 'Unknown';
+                        final lastMessage = group['lastMessage'] ?? '';
+                        final messages = group['messages'] as List<dynamic>;
+
+                        return Dismissible(
+                          key: Key(sender + index.toString()),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            color: Colors.red,
+                            child: const Icon(Icons.delete, color: Colors.white),
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
-                              child: const Icon(Icons.message, color: Color(0xFF2563EB)),
-                            ),
-                            title: Text(
-                              msg['sender']!,
-                              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4.0),
-                              child: Text(
-                                msg['body']!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Color(0xFF64748B)),
+                          onDismissed: (direction) {
+                            // Group-er shob message ba latest message delete korar jonno
+                            for (var msg in messages) {
+                              final m = Map<String, dynamic>.from(msg);
+                              if (m['id'] != null) {
+                                _deleteMessage(m['id'].toString());
+                              }
+                            }
+                            setState(() {
+                              _groupedMessages.removeAt(index);
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Conversation deleted')),
+                            );
+                          },
+                          child: Card(
+                            color: const Color(0xFF1E293B),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.withOpacity(0.2),
+                                child: const Icon(Icons.person, color: Colors.blue),
                               ),
-                            ),
-                            trailing: Text(
-                              msg['date']!,
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              title: Text(
+                                sender,
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              subtitle: Text(
+                                lastMessage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.grey),
+                              ),
+                              trailing: Text(
+                                "${messages.length}",
+                                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ConversationDetailScreen(
+                                      sender: sender,
+                                      messages: messages,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         );
                       },
                     ),
+    );
+  }
+}
+
+// Conversation Detail View Screen (Image 2 style)
+class ConversationDetailScreen extends StatelessWidget {
+  final String sender;
+  final List<dynamic> messages;
+
+  const ConversationDetailScreen({super.key, required this.sender, required this.messages});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(sender),
+        backgroundColor: Colors.transparent,
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: messages.length,
+        itemBuilder: (context, index) {
+          final msg = Map<String, dynamic>.from(messages[index]);
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF334155),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              msg['body'] ?? '',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          );
+        },
+      ),
     );
   }
 }
